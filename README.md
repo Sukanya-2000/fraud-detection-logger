@@ -45,7 +45,7 @@ fraud-detection-logger/
 │   ├── services/
 │   │   └── fraudDetectionService.js  # Fraud detection logic
 │   └── utils/
-│       └── logger.js           # Winston logger config
+│       └── index.js           # Winston logger config
 ├── tests/
 │   └── fraudDetection.test.js
 ├── .env
