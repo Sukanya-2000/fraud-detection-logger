@@ -1,3 +1,4 @@
+// kafka/producer.js
 const { Kafka } = require('kafkajs');
 require('dotenv').config();
 
@@ -10,21 +11,58 @@ const producer = kafka.producer();
 
 const run = async () => {
   await producer.connect();
-  const transaction = {
-    transactionId: "txn_001",
-    userId: "user_abc",
-    amount: 7400,
-    location: "Nigeria",
-    timestamp: new Date().toISOString(),
-  };
+
+  const now = new Date().toISOString();
+
+  const messages = [
+    // Rule 1: amount > 5000 and location != USA
+    {
+      transactionId: "txn_big_1",
+      userId: "userA",
+      amount: 7400,
+      location: "Nigeria",
+      timestamp: now,
+    },
+    // Rule 2: multiple transactions within 10s (same user)
+    {
+      transactionId: "txn_fast_1",
+      userId: "userB",
+      amount: 100,
+      location: "USA",
+      timestamp: new Date().toISOString(),
+    },
+    {
+      transactionId: "txn_fast_2",
+      userId: "userB",
+      amount: 200,
+      location: "USA",
+      timestamp: new Date().toISOString(),
+    },
+    // Rule 3: amount divisible by 1000
+    {
+      transactionId: "txn_round_1",
+      userId: "userC",
+      amount: 3000,
+      location: "USA",
+      timestamp: new Date().toISOString(),
+    },
+    // Non-suspicious
+    {
+      transactionId: "txn_ok_1",
+      userId: "userD",
+      amount: 47,
+      location: "USA",
+      timestamp: new Date().toISOString(),
+    },
+  ];
 
   await producer.send({
     topic: process.env.KAFKA_TOPIC,
-    messages: [{ value: JSON.stringify(transaction) }],
+    messages: messages.map(m => ({ value: JSON.stringify(m) })),
   });
 
-  console.log('Transaction sent');
+  console.log('All test transactions sent');
   await producer.disconnect();
 };
 
-run();
+run().catch(console.error);
