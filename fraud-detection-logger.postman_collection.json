@@ -182,6 +182,23 @@
 			"response": []
 		},
 		{
+			"name": "New Request",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{API}}/metrics",
+					"host": [
+						"{{API}}"
+					],
+					"path": [
+						"metrics"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Clear cache",
 			"request": {
 				"method": "POST",
