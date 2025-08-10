@@ -1,5 +1,6 @@
 const { Kafka } = require('kafkajs');
 const logger = require('../utils/logger');
+const metrics = require('../utils/metrics');
 const FraudDetectionService = require('../services/fraudDetectionService');
 
 class KafkaConsumer {
@@ -30,6 +31,9 @@ class KafkaConsumer {
         try {
             await this.consumer.connect();
             logger.info('Kafka consumer connected successfully');
+            
+            // Update connection metrics
+            metrics.updateActiveConnections(1);
 
             await this.consumer.subscribe({
                 topic: process.env.KAFKA_TOPIC || 'transactions',
@@ -39,6 +43,8 @@ class KafkaConsumer {
             logger.info(`Subscribed to topic: ${process.env.KAFKA_TOPIC || 'transactions'}`);
         } catch (error) {
             logger.error('Failed to connect to Kafka', { error: error.message });
+            // Update connection metrics
+            metrics.updateActiveConnections(0);
             throw error;
         }
     }
@@ -55,9 +61,15 @@ class KafkaConsumer {
 
             await this.consumer.run({
                 eachMessage: async ({ topic, partition, message, heartbeat }) => {
+                    const startTime = Date.now();
                     try {
                         await this.processMessage(message);
                         await heartbeat();
+                        
+                        // Record successful message processing
+                        const duration = (Date.now() - startTime) / 1000;
+                        metrics.recordKafkaMessage('success', topic, duration);
+                        
                     } catch (error) {
                         logger.error('Error processing message', {
                             error: error.message,
@@ -65,6 +77,10 @@ class KafkaConsumer {
                             partition,
                             offset: message.offset
                         });
+
+                        // Record failed message processing
+                        const duration = (Date.now() - startTime) / 1000;
+                        metrics.recordKafkaMessage('failed', topic, duration);
 
                         // Add to retry queue
                         await this.addToRetryQueue(message, 0);
@@ -74,10 +90,16 @@ class KafkaConsumer {
                     for (const message of batch.messages) {
                         if (!isRunning() || isStale()) break;
 
+                        const startTime = Date.now();
                         try {
                             await this.processMessage(message);
                             resolveOffset(message.offset);
                             await heartbeat();
+                            
+                            // Record successful batch message processing
+                            const duration = (Date.now() - startTime) / 1000;
+                            metrics.recordKafkaMessage('success_batch', batch.topic, duration);
+                            
                         } catch (error) {
                             logger.error('Error processing batch message', {
                                 error: error.message,
@@ -85,6 +107,10 @@ class KafkaConsumer {
                                 partition: batch.partition,
                                 offset: message.offset
                             });
+
+                            // Record failed batch message processing
+                            const duration = (Date.now() - startTime) / 1000;
+                            metrics.recordKafkaMessage('failed_batch', batch.topic, duration);
 
                             await this.addToRetryQueue(message, 0);
                         }
@@ -164,6 +190,9 @@ class KafkaConsumer {
                 await this.addToRetryQueue(message, retryCount + 1);
             }
         }, retryDelay);
+        
+        // Update retry queue size metrics
+        metrics.updateRetryQueueSize(this.retryQueue.length);
     }
 
     startRetryQueueProcessor() {
@@ -172,6 +201,8 @@ class KafkaConsumer {
             if (this.retryQueue.length > 0) {
                 logger.info(`Processing ${this.retryQueue.length} messages from retry queue`);
             }
+            // Update retry queue size metrics
+            metrics.updateRetryQueueSize(this.retryQueue.length);
         }, 5000);
     }
 
@@ -184,6 +215,10 @@ class KafkaConsumer {
         try {
             await this.consumer.disconnect();
             this.isRunning = false;
+            
+            // Update connection metrics
+            metrics.updateActiveConnections(0);
+            
             logger.info('Kafka consumer stopped successfully');
         } catch (error) {
             logger.error('Error stopping Kafka consumer', { error: error.message });

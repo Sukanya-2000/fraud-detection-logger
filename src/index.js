@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const logger = require('./utils/logger');
+const metrics = require('./utils/metrics');
 const KafkaConsumer = require('./kafka/consumer');
 const fraudRoutes = require('./routes/fraudRoutes');
 
@@ -56,6 +57,27 @@ class FraudDetectionApp {
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     
+    // Metrics middleware for HTTP requests
+    this.app.use((req, res, next) => {
+      const start = Date.now();
+      
+      // Override res.end to capture response time
+      const originalEnd = res.end;
+      res.end = function(...args) {
+        const duration = (Date.now() - start) / 1000; // Convert to seconds
+        const route = req.route ? req.route.path : req.path;
+        const statusCode = res.statusCode;
+        
+        // Record metrics
+        metrics.recordHttpRequest(req.method, route, statusCode, duration);
+        
+        // Call original end method
+        originalEnd.apply(this, args);
+      };
+      
+      next();
+    });
+    
     // Request logging middleware
     this.app.use((req, res, next) => {
       logger.info('HTTP Request', {
@@ -87,9 +109,22 @@ class FraudDetectionApp {
           frauds: '/frauds',
           fraudsByUser: '/frauds/:userId',
           stats: '/stats',
-          fraudsByRule: '/frauds/rule/:rule'
+          fraudsByRule: '/frauds/rule/:rule',
+          metrics: '/metrics'
         }
       });
+    });
+    
+    // Prometheus metrics endpoint
+    this.app.get('/metrics', async (req, res) => {
+      try {
+        res.set('Content-Type', 'text/plain');
+        const metricsData = await metrics.getMetrics();
+        res.send(metricsData);
+      } catch (error) {
+        logger.error('Error getting metrics', { error: error.message });
+        res.status(500).send('Error collecting metrics');
+      }
     });
     
     // 404 handler

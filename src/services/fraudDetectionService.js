@@ -1,5 +1,6 @@
 const Transaction = require('../models/transaction');
 const logger = require('../utils/logger');
+const metrics = require('../utils/metrics');
 const NodeCache = require('node-cache');
 
 class FraudDetectionService {
@@ -10,6 +11,7 @@ class FraudDetectionService {
     }
 
     async processTransaction(transactionData) {
+        const startTime = Date.now();
         try {
             // Validate transaction data
             Transaction.validate(transactionData);
@@ -35,6 +37,10 @@ class FraudDetectionService {
                 fraudViolations.push(rapidTransactionViolation);
             }
 
+            // Calculate processing duration
+            const duration = (Date.now() - startTime) / 1000;
+            const result = fraudViolations.length > 0 ? 'suspicious' : 'clean';
+
             // If any violations found, flag as suspicious
             if (fraudViolations.length > 0) {
                 const fraudRecord = {
@@ -53,12 +59,18 @@ class FraudDetectionService {
                     location: transaction.location
                 });
 
+                // Record metrics for suspicious transaction
+                metrics.recordFraudDetection(result, fraudViolations, duration);
+
                 return {
                     isSuspicious: true,
                     violations: fraudViolations,
                     transaction: fraudRecord
                 };
             }
+
+            // Record metrics for clean transaction
+            metrics.recordFraudDetection(result, fraudViolations, duration);
 
             return {
                 isSuspicious: false,
@@ -67,6 +79,10 @@ class FraudDetectionService {
             };
 
         } catch (error) {
+            // Record metrics for failed processing
+            const duration = (Date.now() - startTime) / 1000;
+            metrics.recordFraudDetection('failed', [], duration);
+            
             logger.error('Error processing transaction', {
                 error: error.message,
                 transactionData
@@ -133,10 +149,16 @@ class FraudDetectionService {
             });
         });
 
+        // Calculate cache hit ratio
+        const cacheStats = this.userTransactionCache.getStats();
+        const hitRatio = cacheStats.hits / (cacheStats.hits + cacheStats.misses) || 0;
+        metrics.updateCacheHitRatio(hitRatio);
+
         return {
             totalFraudulentTransactions: totalFrauds,
             ruleBreakdown: ruleStats,
-            cacheStats: this.userTransactionCache.getStats()
+            cacheStats: cacheStats,
+            cacheHitRatio: hitRatio
         };
     }
 

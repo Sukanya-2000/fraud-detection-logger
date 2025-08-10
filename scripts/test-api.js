@@ -94,6 +94,26 @@ async function testAPI() {
         console.log('   Status:', rootResponse.data.status);
         console.log('');
 
+        // Test Prometheus metrics endpoint
+        console.log('8. Testing Prometheus metrics endpoint...');
+        const metricsResponse = await axios.get(`${BASE_URL}/metrics`);
+        console.log('✅ Metrics endpoint working');
+        console.log('   Content-Type:', metricsResponse.headers['content-type']);
+        console.log('   Metrics length:', metricsResponse.data.length, 'characters');
+
+        // Check for some key metrics
+        const metricsData = metricsResponse.data;
+        if (metricsData.includes('http_requests_total')) {
+            console.log('   ✅ HTTP request metrics found');
+        }
+        if (metricsData.includes('fraud_detections_total')) {
+            console.log('   ✅ Fraud detection metrics found');
+        }
+        if (metricsData.includes('kafka_messages_processed_total')) {
+            console.log('   ✅ Kafka metrics found');
+        }
+        console.log('');
+
         console.log('🎉 All API tests completed successfully!');
         console.log('\n📋 Available endpoints:');
         console.log('   GET  /health                    - Health check');
@@ -101,6 +121,7 @@ async function testAPI() {
         console.log('   GET  /frauds/:userId            - Get frauds by user ID');
         console.log('   GET  /frauds/rule/:rule         - Get frauds by rule');
         console.log('   GET  /stats                     - Get system statistics');
+        console.log('   GET  /metrics                   - Prometheus metrics');
         console.log('   POST /admin/clear-cache         - Clear cache (admin)');
 
     } catch (error) {

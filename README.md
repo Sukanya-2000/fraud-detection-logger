@@ -1,137 +1,168 @@
 
-# Fraud Detection Logger Microservice
+# Fraud Detection Logger
 
-A Node.js microservice for detecting suspicious transactions in a banking system. It consumes transaction events from Kafka, analyzes them for fraud indicators, logs suspicious ones, and provides a REST API for querying flagged transactions. A Kafka producer script is also included to send test transactions.
+A microservice for detecting suspicious transactions in a banking system using Kafka for message processing and Express.js for the API.
 
----
+## Features
 
-## 🚀 Features
+- **Real-time Fraud Detection**: Processes transaction messages from Kafka streams
+- **Multiple Fraud Rules**: High amount detection, location-based rules, rapid transaction detection
+- **RESTful API**: Endpoints for querying fraud data and system statistics
+- **Kafka Integration**: Robust message consumption with retry mechanisms
+- **Comprehensive Logging**: Structured logging with Winston
+- **In-Memory Caching**: Node-cache for transaction deduplication
+- **Unit Testing**: Jest-based test suite for fraud detection logic
+- **Prometheus Metrics**: Comprehensive monitoring and observability
 
-* **Kafka Consumer** – Listens to `transactions` topic for real-time data
-* **Kafka Producer** – Sends test transactions for development/demo
-* **Fraud Detection Engine** – Multiple rules to detect suspicious activity
-* **REST API** – Query flagged transactions and system health
-* **Structured Logging** – Using Winston
-* **In-Memory Storage** – Fast detection & transaction storage
-* **Graceful Shutdown** – Handles termination signals
-* **Unit Tests** – Jest-based testing
+## Prometheus Integration
 
----
+This service includes full Prometheus metrics integration for comprehensive monitoring:
 
-## 🕵️ Fraud Detection Rules
+### Available Metrics
 
-1. **HIGH_AMOUNT_NON_USA** – Amount > $5000 and location ≠ USA
-2. **RAPID_TRANSACTIONS** – Multiple transactions by the same user in < 10 seconds
-3. **ROUND_AMOUNT** – Amount divisible by 1000
+#### HTTP Metrics
+- `http_requests_total` - Total HTTP requests by method, route, and status code
+- `http_request_duration_seconds` - Request duration histogram
 
----
+#### Business Metrics
+- `fraud_detections_total` - Fraud detection operations by result and rule violations
+- `fraud_detection_duration_seconds` - Fraud detection processing time
 
-## 📂 Project Structure
+#### Kafka Metrics
+- `kafka_messages_processed_total` - Kafka messages processed by status and topic
+- `kafka_message_processing_duration_seconds` - Message processing time
 
-```
-fraud-detection-logger/
-├── src/
-│   ├── index.js                # Main entry point & Express server
-│   ├── kafka/
-│   │   ├── consumer.js         # Kafka consumer
-│   │   └── producer.js         # Kafka producer
-│   ├── models/
-│   │   └── transaction.js      # Transaction schema & fraud rules
-│   ├── routes/
-│   │   └── fraudRoutes.js      # REST API routes
-│   ├── services/
-│   │   └── fraudDetectionService.js  # Fraud detection logic
-│   └── utils/
-│       └── logger.js           # Winston logger configuration
-├── tests/
-│   └── fraudDetection.test.js  # Unit tests
-├── scripts/
-│   └── test-api.js             # API testing script
-├── logs/                        # Application logs
-├── docker-compose.yml           # Docker setup for Kafka
-├── .env                         # Environment variables
-├── env.example                  # Environment template
-├── package.json
-└── README.md
-```
+#### System Metrics
+- `retry_queue_size` - Current size of the retry queue
+- `cache_hit_ratio` - Cache hit ratio (0-1)
+- `active_connections` - Number of active Kafka connections
 
----
+#### Default Node.js Metrics
+- CPU usage, memory usage, event loop lag
+- Garbage collection statistics
+- Active handles and requests
 
-## 📦 Installation
+### Metrics Endpoint
+
+Access Prometheus metrics at: `GET /metrics`
+
+The endpoint returns metrics in Prometheus exposition format, ready for scraping.
+
+### Monitoring Setup
+
+#### Option 1: Docker Compose (Recommended)
 
 ```bash
-git clone <repository-url>
-cd fraud-detection-logger
-npm install
-cp env.example .env
+# Start the entire monitoring stack
+docker-compose up -d
+
+# Access services:
+# - Fraud Detection API: http://localhost:3000
+# - Prometheus: http://localhost:9090
+# - Grafana: http://localhost:3001 (admin/admin)
 ```
 
-Edit `.env` with your configuration:
+#### Option 2: Manual Prometheus Setup
 
-```env
-# Kafka Configuration
-KAFKA_BROKERS=localhost:9092
-KAFKA_TOPIC=transactions
-KAFKA_GROUP_ID=fraud-detection-group
-KAFKA_CLIENT_ID=fraud-detection-client
+1. Download Prometheus from [prometheus.io](https://prometheus.io/download/)
+2. Use the provided `prometheus.yml` configuration
+3. Point Prometheus to your service at `http://localhost:3000/metrics`
 
-# Server Configuration
+### Grafana Dashboards
+
+After starting Grafana:
+
+1. Login with `admin/admin`
+2. Add Prometheus as a data source: `http://prometheus:9090`
+3. Import dashboards or create custom ones using the available metrics
+
+### Key Metrics to Monitor
+
+- **Request Rate**: `rate(http_requests_total[5m])`
+- **Error Rate**: `rate(http_requests_total{status_code=~"5.."}[5m])`
+- **Fraud Detection Latency**: `histogram_quantile(0.95, fraud_detection_duration_seconds_bucket)`
+- **Kafka Processing Rate**: `rate(kafka_messages_processed_total[5m])`
+- **Cache Performance**: `cache_hit_ratio`
+- **Retry Queue Health**: `retry_queue_size`
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 16+
+- Kafka cluster (or use the provided Docker setup)
+- Docker and Docker Compose (for monitoring)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd fraud-detection-logger
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp env.example .env
+# Edit .env with your configuration
+
+# Start the service
+npm run dev
+
+# In another terminal, test the API
+npm run test:api
+
+# Run tests
+npm test
+```
+
+### Environment Variables
+
+```bash
+# Server configuration
 PORT=3000
 NODE_ENV=development
 
-# Logging Configuration
+# Kafka configuration
+KAFKA_BROKERS=localhost:9092
+KAFKA_TOPIC=transactions
+KAFKA_CLIENT_ID=fraud-detection-client
+KAFKA_GROUP_ID=fraud-detection-group
+
+# Logging
 LOG_LEVEL=info
 ```
 
----
+## API Endpoints
 
-## 🐳 Quick Start with Docker
+- `GET /` - Service information and available endpoints
+- `GET /health` - Health check with Kafka connection status
+- `GET /frauds` - Get all fraudulent transactions
+- `GET /frauds/:userId` - Get frauds by user ID
+- `GET /frauds/rule/:rule` - Get frauds by rule type
+- `GET /stats` - System statistics and cache performance
+- `GET /metrics` - Prometheus metrics (for monitoring)
 
-1. **Start Kafka using Docker Compose:**
-```bash
-docker-compose up -d
+## Fraud Detection Rules
+
+1. **High Amount Non-USA**: Transactions > $5000 from non-USA locations
+2. **Round Amount**: Transactions with round amounts (e.g., $1000, $5000)
+3. **Rapid Transactions**: Multiple transactions from same user within 10 seconds
+
+## Architecture
+
+```
+Kafka → Consumer → Fraud Detection Service → API Endpoints
+                ↓
+            Retry Queue (with exponential backoff)
+                ↓
+            In-Memory Cache (deduplication)
+                ↓
+            Prometheus Metrics
 ```
 
-2. **Wait for Kafka to be ready (check logs):**
-```bash
-docker-compose logs kafka
-```
-
-3. **Start the fraud detection service:**
-```bash
-npm start
-```
-
-4. **In another terminal, send test transactions:**
-```bash
-npm run start:producer
-```
-
----
-
-## ▶️ Usage
-
-### 1. Start the Main Service (Kafka Consumer + API)
-
-```bash
-# Development mode with hot reload
-npm run dev
-
-# Production mode
-npm start
-```
-
-This starts the Express server and Kafka consumer.
-
-### 2. Send Test Transactions
-
-```bash
-npm run start:producer
-```
-
-This will send sample transactions to Kafka for testing the fraud detection.
-
-### 3. Run Tests
+## Testing
 
 ```bash
 # Run all tests
@@ -140,185 +171,29 @@ npm test
 # Run tests in watch mode
 npm run test:watch
 
-# Test the API endpoints
+# Test API endpoints
 npm run test:api
 ```
 
----
+## Monitoring and Observability
 
-## 🧪 Testing Guide
+The service provides comprehensive monitoring through:
 
-### Step-by-Step Testing Process
+- **Structured Logging**: JSON-formatted logs with timestamps
+- **Health Checks**: Kafka connection status and service health
+- **Performance Metrics**: Request duration, processing times
+- **Business Metrics**: Fraud detection rates and rule violations
+- **System Metrics**: Cache performance, queue sizes, connections
 
-1. **Start the Service:**
-   ```bash
-   npm start
-   ```
-
-2. **Send Test Transactions:**
-   ```bash
-   npm run start:producer
-   ```
-
-3. **Test API Endpoints in Postman:**
-
-   **Health Check:**
-   ```
-   GET http://localhost:3000/health
-   ```
-
-   **Get All Fraudulent Transactions:**
-   ```
-   GET http://localhost:3000/frauds
-   ```
-
-   **Get Fraud by User ID:**
-   ```
-   GET http://localhost:3000/frauds/user_123
-   ```
-
-4. **Check Logs:**
-   - Monitor the console output for fraud detection logs
-   - Check the `logs/` directory for detailed logs
-
-5. **Run Unit Tests:**
-   ```bash
-   npm test
-   ```
-
-### Expected Test Results
-
-- **Producer:** Should send transactions and show "Transaction sent successfully"
-- **Consumer:** Should process transactions and log fraud detections
-- **API:** Should return flagged transactions based on fraud rules
-- **Logs:** Should show transaction processing and fraud detection decisions
-
----
-
-## 🔌 API Endpoints
-
-**Health Check**
-```http
-GET /health
-```
-Response: `{"status": "ok", "timestamp": "..."}`
-
-**Get All Fraudulent Transactions**
-```http
-GET /frauds
-```
-Response: Array of flagged transactions
-
-**Get Fraud by User ID**
-```http
-GET /frauds/:userId
-```
-Response: Array of frauds for specific user
-
----
-
-## 📜 Kafka Message Format
-
-```json
-{
-  "transactionId": "txn_789",
-  "userId": "user_123",
-  "amount": 7400,
-  "location": "Nigeria",
-  "timestamp": "2025-07-30T10:12:00Z"
-}
-```
-
----
-
-## 🛠 Troubleshooting
-
-### Common Issues
-
-* **Kafka Connection Failed:**
-  - Ensure Kafka is running: `docker-compose ps`
-  - Check `KAFKA_BROKERS` in `.env`
-  - Verify Kafka is accessible: `telnet localhost 9092`
-
-* **No Transactions Processed:**
-  - Verify topic exists: `docker-compose exec kafka kafka-topics --list --bootstrap-server localhost:9092`
-  - Check consumer group: `docker-compose exec kafka kafka-consumer-groups --bootstrap-server localhost:9092 --list`
-
-* **API Not Responding:**
-  - Check if service is running: `npm start`
-  - Verify port 3000 is not in use
-  - Check logs for errors
-
-* **High Memory Usage:**
-  - Transactions are stored in memory
-  - Consider implementing database persistence for production
-
-### Debug Commands
-
-```bash
-# Check Kafka status
-docker-compose logs kafka
-
-# List Kafka topics
-docker-compose exec kafka kafka-topics --list --bootstrap-server localhost:9092
-
-# Check consumer groups
-docker-compose exec kafka kafka-consumer-groups --bootstrap-server localhost:9092 --list
-
-# View application logs
-tail -f logs/app.log
-```
-
----
-
-## 📊 Monitoring & Logs
-
-The service logs:
-- Transaction reception
-- Fraud detection decisions
-- API requests
-- Error conditions
-
-Logs are written to both console and `logs/` directory.
-
----
-
-## 🔒 Security Considerations
-
-- Input validation on API endpoints
-- Rate limiting (can be added)
-- Authentication/Authorization (not implemented - add for production)
-
----
-
-## 📈 Performance
-
-- In-memory transaction storage for fast access
-- Kafka consumer with automatic offset management
-- Efficient fraud rule evaluation
-
----
-
-## 📜 License
-
-MIT License – see LICENSE file.
-
----
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Add tests
+3. Add tests for new functionality
+4. Ensure all tests pass
 5. Submit a pull request
 
----
+## License
 
-## 📞 Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review logs for error details
-3. Ensure all dependencies are properly configured
+MIT License - see LICENSE file for details.
 
