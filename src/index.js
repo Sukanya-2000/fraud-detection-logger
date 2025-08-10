@@ -19,24 +19,24 @@ class FraudDetectionApp {
     try {
       // Setup middleware
       this.setupMiddleware();
-      
+
       // Setup routes
       this.setupRoutes();
-      
+
       // Setup error handling
       this.setupErrorHandling();
-      
+
       // Start Kafka consumer
       await this.startKafkaConsumer();
-      
+
       // Start HTTP server
       await this.startServer();
-      
+
       // Setup graceful shutdown
       this.setupGracefulShutdown();
-      
+
       logger.info('Fraud detection application initialized successfully');
-      
+
     } catch (error) {
       logger.error('Failed to initialize application', { error: error.message });
       process.exit(1);
@@ -46,38 +46,38 @@ class FraudDetectionApp {
   setupMiddleware() {
     // Security middleware
     this.app.use(helmet());
-    
+
     // CORS middleware
     this.app.use(cors({
       origin: process.env.NODE_ENV === 'production' ? false : true,
       credentials: true
     }));
-    
+
     // Body parsing middleware
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-    
+
     // Metrics middleware for HTTP requests
     this.app.use((req, res, next) => {
       const start = Date.now();
-      
+
       // Override res.end to capture response time
       const originalEnd = res.end;
-      res.end = function(...args) {
+      res.end = function (...args) {
         const duration = (Date.now() - start) / 1000; // Convert to seconds
         const route = req.route ? req.route.path : req.path;
         const statusCode = res.statusCode;
-        
+
         // Record metrics
         metrics.recordHttpRequest(req.method, route, statusCode, duration);
-        
+
         // Call original end method
         originalEnd.apply(this, args);
       };
-      
+
       next();
     });
-    
+
     // Request logging middleware
     this.app.use((req, res, next) => {
       logger.info('HTTP Request', {
@@ -94,10 +94,10 @@ class FraudDetectionApp {
     // Make services available to routes
     this.app.set('fraudDetectionService', this.kafkaConsumer.getFraudDetectionService());
     this.app.set('kafkaConsumer', this.kafkaConsumer);
-    
+
     // API routes
     this.app.use('/', fraudRoutes);
-    
+
     // Root endpoint
     this.app.get('/', (req, res) => {
       res.json({
@@ -114,7 +114,7 @@ class FraudDetectionApp {
         }
       });
     });
-    
+
     // Prometheus metrics endpoint
     this.app.get('/metrics', async (req, res) => {
       try {
@@ -126,7 +126,7 @@ class FraudDetectionApp {
         res.status(500).send('Error collecting metrics');
       }
     });
-    
+
     // 404 handler
     this.app.use('*', (req, res) => {
       res.status(404).json({
@@ -146,7 +146,7 @@ class FraudDetectionApp {
         url: req.url,
         method: req.method
       });
-      
+
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -172,7 +172,7 @@ class FraudDetectionApp {
         logger.info(`HTTP server started on port ${this.port}`);
         resolve();
       });
-      
+
       this.server.on('error', (error) => {
         logger.error('HTTP server error', { error: error.message });
         reject(error);
@@ -183,7 +183,7 @@ class FraudDetectionApp {
   setupGracefulShutdown() {
     const gracefulShutdown = async (signal) => {
       logger.info(`Received ${signal}, starting graceful shutdown`);
-      
+
       try {
         // Stop accepting new connections
         if (this.server) {
@@ -195,15 +195,15 @@ class FraudDetectionApp {
             }
           });
         }
-        
+
         // Stop Kafka consumer
         if (this.kafkaConsumer) {
           await this.kafkaConsumer.stop();
         }
-        
+
         logger.info('Graceful shutdown completed');
         process.exit(0);
-        
+
       } catch (error) {
         logger.error('Error during graceful shutdown', { error: error.message });
         process.exit(1);
@@ -213,13 +213,13 @@ class FraudDetectionApp {
     // Handle different shutdown signals
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    
+
     // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
       logger.error('Uncaught exception', { error: error.message, stack: error.stack });
       gracefulShutdown('uncaughtException');
     });
-    
+
     process.on('unhandledRejection', (reason, promise) => {
       logger.error('Unhandled rejection', { reason, promise });
       gracefulShutdown('unhandledRejection');

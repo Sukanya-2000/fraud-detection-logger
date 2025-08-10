@@ -79,7 +79,7 @@ const metrics = {
         httpRequestDurationMicroseconds
             .labels(method, route, statusCode)
             .observe(duration);
-        
+
         httpRequestsTotal
             .labels(method, route, statusCode)
             .inc();
@@ -88,11 +88,11 @@ const metrics = {
     // Fraud detection metrics
     recordFraudDetection: (result, ruleViolations, duration) => {
         const violations = ruleViolations.length > 0 ? 'with_violations' : 'no_violations';
-        
+
         fraudDetectionDuration
             .labels(result, violations)
             .observe(duration);
-        
+
         fraudDetectionsTotal
             .labels(result, violations)
             .inc();
@@ -103,7 +103,7 @@ const metrics = {
         kafkaMessagesProcessed
             .labels(status, topic)
             .inc();
-        
+
         if (duration !== undefined) {
             kafkaMessageProcessingDuration
                 .labels(status)
